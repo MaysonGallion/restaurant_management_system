@@ -20,6 +20,13 @@ class RestaurantGUI:
         self.canvas = tk.Canvas(self.root, bg="lightgrey")
         self.canvas.pack(fill=tk.BOTH, expand=True)
 
+        # Привязываем событие изменения размера окна
+        self.canvas.bind("<Configure>", self.on_canvas_resize)
+
+        # Рисуем сетку
+        self.grid_size = 12  # Размер ячейки сетки
+        self.draw_grid()
+
         # Панель управления (включает кнопку "Добавить столик" и время)
         control_panel = tk.Frame(self.root, bg="white", height=0)
         control_panel.pack(fill=tk.X, side=tk.BOTTOM)
@@ -36,6 +43,24 @@ class RestaurantGUI:
 
         # Загрузка столиков из базы данных
         self.load_tables()
+
+    def on_canvas_resize(self, event):
+        """Перерисовываем сетку при изменении размера окна."""
+        self.draw_grid()
+
+    def draw_grid(self):
+        """Рисуем сетку на поле для столиков."""
+        self.canvas.delete("grid_line")
+        width = self.canvas.winfo_width()
+        height = self.canvas.winfo_height()
+
+        # Вертикальные линии
+        for x in range(0, width, self.grid_size):
+            self.canvas.create_line(x, 0, x, height, fill="gray", dash=(2, 4))
+
+        # Горизонтальные линии
+        for y in range(0, height, self.grid_size):
+            self.canvas.create_line(0, y, width, y, fill="gray", dash=(2, 4))
 
     def create_menu(self):
         """Создаём верхнюю панель с меню."""
@@ -59,27 +84,58 @@ class RestaurantGUI:
         conn = connect()
         cursor = conn.cursor()
 
-        cursor.execute('''SELECT id, status, capacity FROM tables''')
+        # Загружаем все столики из базы данных
+        cursor.execute('SELECT id, x, y, width, height, status, capacity, guests FROM tables')
         rows = cursor.fetchall()
 
-        # Для каждого столика из базы создаем объект Table
         for row in rows:
-            table_id, status, capacity = row
-            table = Table(self.canvas, x=50, y=50, width=100, height=100, table_id=table_id, status=status,
-                          capacity=capacity)
+            table_id, x, y, width, height, status, capacity, guests = row
+
+            # Создаём объект столика
+            table = Table(
+                self.canvas,
+                x=x,
+                y=y,
+                width=width,
+                height=height,
+                table_id=table_id,
+                status=status,
+                capacity=capacity,
+                guests=guests
+            )
+
+            # Устанавливаем цвет в зависимости от статуса
+            table.update_table_color()
+
+            # Добавляем столик в список
             self.tables.append(table)
-            table.update_table_color()  # Применяем правильный цвет к столикам при загрузке
 
         conn.close()
 
     def add_new_table(self):
-        """Открываем окно для ввода параметров нового столика и добавляем его на экран."""
+        """Добавляем новый столик с минимальными данными и сохраняем его в базу."""
         capacity = simpledialog.askinteger("Новый столик", "Введите вместимость столика:", minvalue=1, maxvalue=20)
 
         if capacity:
-            # Создаем новый столик с указанной вместимостью и сохраняем его в базе данных
-            table = Table(self.canvas, x=100, y=100, width=100, height=100, table_id=None, capacity=capacity)
-            table.save_to_db()  # Сохраняем в базу данных, чтобы получить уникальный ID
+            # Создаём новый объект столика
+            table = Table(
+                self.canvas,
+                x=100,  # Стартовые координаты
+                y=100,
+                width=50,  # Стандартные размеры
+                height=50,
+                table_id=None,  # Новый столик
+                status="free",  # Статус по умолчанию
+                capacity=capacity,
+                guests=0,  # Гостей нет
+                occupied_time=None,  # Время посадки отсутствует
+                released_time=None  # Время освобождения отсутствует
+            )
+
+            # Сохраняем столик в базу данных
+            table.save_to_db()
+
+            # Добавляем столик в список
             self.tables.append(table)
 
     def add_user(self):
