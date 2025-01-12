@@ -24,6 +24,8 @@ class Table:
         self.rect = self.canvas.create_rectangle(self.x, self.y, self.x + self.width, self.y + self.height,
                                                  fill="lightblue")
 
+        self.update_table_color()
+
         self.grid_size = 12  # Размер ячейки сетки
         self.resize_mode = None  # Режим изменения размеров
 
@@ -40,6 +42,20 @@ class Table:
         self.canvas.tag_bind(self.rect, "<ButtonPress-2>", self.start_resize)  # Средняя кнопка мыши для изменения
         self.canvas.tag_bind(self.rect, "<B2-Motion>", self.do_resize)  # Перетаскивание для изменения размеров
         self.canvas.tag_bind(self.rect, "<ButtonRelease-2>", self.stop_resize)  # Отпускание средней кнопки
+
+    def update_table_color(self):
+        """Обновляем цвет столика в зависимости от его статуса."""
+        # Сопоставление статусов с цветами
+        color_map = {
+            "free": "lightblue",  # Свободный столик
+            "occupied": "red",  # Занятый столик
+            "reserved": "yellow"  # Зарезервированный столик
+        }
+        # Цвет по умолчанию для неизвестных статусов
+        color = color_map.get(self.status, "gray")
+
+        # Устанавливаем цвет заливки и обводки прямоугольника
+        self.canvas.itemconfig(self.rect, fill=color, outline=color)
 
     def save_to_db(self):
         """Сохраняем новый столик в базу данных или обновляем существующий."""
@@ -74,8 +90,11 @@ class Table:
 
         # Обновляем статус, количество гостей, время посадки и освобождения
         cursor.execute(
-            '''UPDATE tables SET status = ?, guests = ?, occupied_time = ?, released_time = ? WHERE id = ?''',
-            (self.status, self.guests, self.occupied_time, self.released_time, self.table_id))
+            '''UPDATE tables
+               SET x = ?, y = ?, width = ?, height = ?, status = ?, guests = ?, occupied_time = ?, released_time = ? 
+               WHERE id = ?''',
+            (self.x, self.y, self.width, self.height, self.status, self.guests, self.occupied_time, self.released_time,
+             self.table_id))
 
         conn.commit()
         conn.close()
@@ -177,19 +196,8 @@ class Table:
         self.start_x = event.x
         self.start_y = event.y
 
-    def update_table_color(self):
-        """Изменяем цвет столика в зависимости от статуса."""
-        if self.status == "free":
-            color = "lightblue"
-        elif self.status == "occupied":
-            color = "red"
-        elif self.status == "reserved":
-            color = "yellow"
-        else:
-            color = "gray"  # По умолчанию свободный
-
-        # Обновляем цвет прямоугольника
-        self.canvas.itemconfig(self.rect, fill=color)
+        self.x, self.y, *_ = self.canvas.coords(self.rect)
+        self.update_table_info_in_db()
 
     def snap_to_grid(self):
         """Привязываем столик к ближайшей ячейке сетки"""
@@ -239,6 +247,7 @@ class Table:
 
         # Обновляем координаты прямоугольника
         self.canvas.coords(self.rect, self.x, self.y, self.x + self.width, self.y + self.height)
+        self.update_table_info_in_db()
 
     def stop_resize(self, event):
         """Завершаем изменение размеров столика."""
