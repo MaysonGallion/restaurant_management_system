@@ -110,13 +110,6 @@ class RestaurantGUI:
         # Убедимся, что сетка находится "ниже" всех столиков
         self.canvas.tag_lower("grid_line")
 
-        # Вертикальные линии
-        for x in range(0, width, self.grid_size):
-            self.canvas.create_line(x, 0, x, height, fill="gray", dash=(2, 4))
-
-        # Горизонтальные линии
-        for y in range(0, height, self.grid_size):
-            self.canvas.create_line(0, y, width, y, fill="gray", dash=(2, 4))
 
     def create_menu(self):
         """Создаём верхнюю панель с меню."""

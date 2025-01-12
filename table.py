@@ -30,6 +30,8 @@ class Table:
         self.resize_mode = None  # Режим изменения размеров
 
         # Привязка событий мыши
+        self.canvas.tag_bind(self.rect, "<Enter>", self.show_tooltip)  # Наведение курсора для подсказки
+        self.canvas.tag_bind(self.rect, "<Leave>", self.hide_tooltip)  # Уход курсора для скрытия подсказки
         # Привязка событий мыши
         self.canvas.tag_bind(self.rect, "<ButtonPress-1>", self.on_press_left)  # Левая кнопка для управления
         self.canvas.tag_bind(self.rect, "<ButtonPress-3>",
@@ -55,7 +57,43 @@ class Table:
         color = color_map.get(self.status, "gray")
 
         # Устанавливаем цвет заливки и обводки прямоугольника
-        self.canvas.itemconfig(self.rect, fill=color, outline=color)
+        self.canvas.itemconfig(self.rect, fill=color, outline="black", width=1)
+
+    def show_tooltip(self, event):
+        """Отображаем всплывающую подсказку с информацией о столике."""
+        tooltip_text = (f"Столик ID: {self.table_id}\n"
+                        f"Статус: {self.status.capitalize()}\n"
+                        f"Вместимость: {self.capacity}\n"
+                        f"Гостей: {self.guests}\n"
+                        f"Время посадки: {self.occupied_time or '-'}\n"
+                        f"Время освобождения: {self.released_time or '-'}")
+
+        # Создаем фон для подсказки (прямоугольник)
+        # Создаем фон для подсказки (прямоугольник)
+        self.tooltip_bg = self.canvas.create_rectangle(
+            event.x + 10, event.y + 10,
+            event.x + 260, event.y + 115,  # Размеры фона
+            fill="white", outline="black"
+        )
+
+        # Отображаем текст поверх фона
+        self.tooltip_text = self.canvas.create_text(
+            event.x + 15, event.y + 15,  # Координаты текста
+            text=tooltip_text,
+            anchor="nw",
+            fill="black",
+            font=("Arial", 10)
+        )
+
+    def hide_tooltip(self, event):
+        """Скрываем всплывающую подсказку."""
+        """Скрываем всплывающую подсказку."""
+        if hasattr(self, 'tooltip_bg') and self.tooltip_bg:
+            self.canvas.delete(self.tooltip_bg)
+            self.tooltip_bg = None
+        if hasattr(self, 'tooltip_text') and self.tooltip_text:
+            self.canvas.delete(self.tooltip_text)
+            self.tooltip_text = None
 
     def save_to_db(self):
         """Сохраняем новый столик в базу данных или обновляем существующий."""
