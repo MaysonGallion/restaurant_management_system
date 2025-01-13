@@ -110,7 +110,6 @@ class RestaurantGUI:
         # Убедимся, что сетка находится "ниже" всех столиков
         self.canvas.tag_lower("grid_line")
 
-
     def create_menu(self):
         """Создаём верхнюю панель с меню."""
         menubar = tk.Menu(self.root)

@@ -68,11 +68,18 @@ class Table:
                         f"Время посадки: {self.occupied_time or '-'}\n"
                         f"Время освобождения: {self.released_time or '-'}")
 
-        # Создаем фон для подсказки (прямоугольник)
+        # Создаём временный текст для измерения его размеров
+        temp_text = self.canvas.create_text(0, 0, text=tooltip_text, anchor="nw", font=("Arial", 10))
+        bbox = self.canvas.bbox(temp_text)  # Получаем координаты ограничивающего прямоугольника текста
+        self.canvas.delete(temp_text)  # Удаляем временный текст
+
+        text_width = bbox[2] - bbox[0] + 10  # Ширина текста + отступ
+        text_height = bbox[3] - bbox[1] + 10  # Высота текста + отступ
+
         # Создаем фон для подсказки (прямоугольник)
         self.tooltip_bg = self.canvas.create_rectangle(
             event.x + 10, event.y + 10,
-            event.x + 260, event.y + 115,  # Размеры фона
+            event.x + 10 + text_width, event.y + 10 + text_height,  # Размеры фона
             fill="white", outline="black"
         )
 
@@ -87,13 +94,82 @@ class Table:
 
     def hide_tooltip(self, event):
         """Скрываем всплывающую подсказку."""
-        """Скрываем всплывающую подсказку."""
         if hasattr(self, 'tooltip_bg') and self.tooltip_bg:
             self.canvas.delete(self.tooltip_bg)
             self.tooltip_bg = None
         if hasattr(self, 'tooltip_text') and self.tooltip_text:
             self.canvas.delete(self.tooltip_text)
             self.tooltip_text = None
+
+    def close_table(self):
+        """Открываем окно расчёта для закрытия столика."""
+        if self.status != "occupied":
+            tk.messagebox.showinfo("Информация", "Столик не занят, нечего закрывать!")
+            return
+
+        # Создаём новое окно для расчёта
+        checkout_window = tk.Toplevel()
+        checkout_window.title(f"Закрытие столика {self.table_id}")
+
+        # Отображение информации о заказе
+        tk.Label(checkout_window, text="Список заказов:", font=("Arial", 12)).pack(pady=5)
+        orders_list = tk.Listbox(checkout_window, width=50, height=10)
+        orders_list.pack(pady=5)
+
+        # (Тестовые данные, пока нет меню)
+        orders_list.insert(tk.END, "Позиция 1 - 200₽")
+        orders_list.insert(tk.END, "Позиция 2 - 150₽")
+
+        # Полная стоимость
+        total_label = tk.Label(checkout_window, text="Итого: 350₽", font=("Arial", 12, "bold"))
+        total_label.pack(pady=5)
+
+        # Секция для разделения счета
+        tk.Label(checkout_window, text="Разделить счёт:", font=("Arial", 12)).pack(pady=5)
+        split_entry = tk.Entry(checkout_window)
+        split_entry.pack(pady=5)
+
+        # Кнопка для применения скидки
+        tk.Label(checkout_window, text="Применить скидку (%):", font=("Arial", 12)).pack(pady=5)
+        discount_entry = tk.Entry(checkout_window)
+        discount_entry.pack(pady=5)
+
+        # Выбор способа оплаты
+        tk.Label(checkout_window, text="Способ оплаты:", font=("Arial", 12)).pack(pady=5)
+        payment_method = tk.StringVar(value="Наличные")
+        tk.OptionMenu(checkout_window, payment_method, "Наличные", "Карта", "Смешанный").pack(pady=5)
+
+        # Кнопка подтверждения
+        tk.Button(
+            checkout_window, text="Подтвердить оплату",
+            command=lambda: self.finish_checkout(checkout_window, total_label, discount_entry, payment_method.get())
+        ).pack(pady=10)
+
+    def finish_checkout(self, window, total_label, discount_entry, payment_method):
+        """Обрабатываем завершение расчёта."""
+        discount = discount_entry.get()
+        if discount.isdigit():
+            discount = int(discount)
+        else:
+            discount = 0
+
+        # Рассчитать новую итоговую стоимость
+        total_text = total_label.cget("text")
+        total_amount = int(total_text.split(":")[1].strip().replace("₽", ""))
+        final_amount = total_amount * (1 - discount / 100)
+
+        # Подтверждение
+        tk.messagebox.showinfo("Оплата завершена",
+                               f"Итоговая сумма: {final_amount:.2f}₽\nСпособ оплаты: {payment_method}")
+
+        # Обновляем статус столика
+        self.status = "free"
+        self.guests = 0
+        self.update_table_color()
+        self.update_table_info_in_db()
+
+        # Закрываем окно
+        window.destroy()
 
     def save_to_db(self):
         """Сохраняем новый столик в базу данных или обновляем существующий."""
@@ -183,6 +259,9 @@ class Table:
                                                                         order_text.get("1.0", tk.END), dialog,
                                                                         time_label))
         confirm_button.pack(pady=10)
+
+        close_button = tk.Button(dialog, text="Закрыть столик", command=self.close_table)
+        close_button.pack(pady=10)
 
     def save_table_info(self, status, guests, order_text, dialog, time_label):
         """Сохраняем изменения статуса, количества человек, времени и заказа."""
