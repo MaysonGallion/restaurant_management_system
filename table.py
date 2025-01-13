@@ -111,7 +111,11 @@ class Table:
         checkout_window = tk.Toplevel()
         checkout_window.title(f"Закрытие столика {self.table_id}")
 
-        # Отображение информации о заказе
+        # Секция информации о столике
+        tk.Label(checkout_window, text=f"Столик ID: {self.table_id}", font=("Arial", 12)).pack(pady=5)
+        tk.Label(checkout_window, text=f"Количество гостей: {self.guests}", font=("Arial", 12)).pack(pady=5)
+
+        # Список заказов
         tk.Label(checkout_window, text="Список заказов:", font=("Arial", 12)).pack(pady=5)
         orders_list = tk.Listbox(checkout_window, width=50, height=10)
         orders_list.pack(pady=5)
@@ -119,56 +123,121 @@ class Table:
         # (Тестовые данные, пока нет меню)
         orders_list.insert(tk.END, "Позиция 1 - 200₽")
         orders_list.insert(tk.END, "Позиция 2 - 150₽")
+        orders_list.insert(tk.END, "Позиция 3 - 300₽")
 
         # Полная стоимость
-        total_label = tk.Label(checkout_window, text="Итого: 350₽", font=("Arial", 12, "bold"))
+        total_label = tk.Label(checkout_window, text="Итого: 650₽", font=("Arial", 12, "bold"))
         total_label.pack(pady=5)
 
-        # Секция для разделения счета
-        tk.Label(checkout_window, text="Разделить счёт:", font=("Arial", 12)).pack(pady=5)
-        split_entry = tk.Entry(checkout_window)
-        split_entry.pack(pady=5)
+        # Фрейм для выбора способа разделения счета и связанных элементов
+        split_frame = tk.Frame(checkout_window)
+        split_frame.pack(pady=5, fill=tk.X)
 
-        # Кнопка для применения скидки
-        tk.Label(checkout_window, text="Применить скидку (%):", font=("Arial", 12)).pack(pady=5)
-        discount_entry = tk.Entry(checkout_window)
-        discount_entry.pack(pady=5)
+        # Выбор способа разделения счёта
+        tk.Label(split_frame, text="Выберите способ разделения счета:", font=("Arial", 12)).grid(row=0, column=0, sticky="w")
+        split_method = tk.StringVar(value="none")  # Установлено в значение "none" для начального состояния
 
-        # Выбор способа оплаты
-        tk.Label(checkout_window, text="Способ оплаты:", font=("Arial", 12)).pack(pady=5)
-        payment_method = tk.StringVar(value="Наличные")
-        tk.OptionMenu(checkout_window, payment_method, "Наличные", "Карта", "Смешанный").pack(pady=5)
+        def toggle_guest_split():
+            if split_method.get() == "По гостям":
+                self.guest_count_entry.grid()
+                self.calculate_button.grid()
+            else:
+                self.guest_count_entry.grid_remove()
+                self.calculate_button.grid_remove()
+                self.result_label.config(text="")
 
-        # Кнопка подтверждения
+        tk.Radiobutton(split_frame, text="По гостям", variable=split_method, value="По гостям", command=toggle_guest_split).grid(row=1, column=0, sticky="w")
+
+        # Поле для разделения по гостям (на одной линии с радиокнопкой "По гостям")
+        self.guest_count_entry = tk.Entry(split_frame, width=5)
+        self.guest_count_entry.grid(row=1, column=1, padx=5)
+        self.guest_count_entry.grid_remove()
+
+        self.calculate_button = tk.Button(split_frame, text="Рассчитать", command=lambda: self.calculate_guest_split(total_label))
+        self.calculate_button.grid(row=1, column=2, padx=5)
+        self.calculate_button.grid_remove()
+
+        self.result_label = tk.Label(split_frame, text="", font=("Arial", 10))
+        self.result_label.grid(row=1, column=3, padx=5, sticky="w")
+
+        tk.Radiobutton(split_frame, text="По позициям", variable=split_method, value="По позициям", command=toggle_guest_split).grid(row=2, column=0, sticky="w")
+
+        # Кнопка подтверждения оплаты
         tk.Button(
             checkout_window, text="Подтвердить оплату",
-            command=lambda: self.finish_checkout(checkout_window, total_label, discount_entry, payment_method.get())
+            command=lambda: self.finish_checkout(checkout_window, total_label, None, "Наличные")
         ).pack(pady=10)
+
+    def calculate_guest_split(self, total_label):
+        """Рассчитывает сумму на гостя."""
+        total_text = total_label.cget("text")
+        total_amount = int(total_text.split(":")[1].strip().replace("₽", ""))
+        try:
+            guest_count = int(self.guest_count_entry.get())
+            if guest_count > 0:
+                per_guest = total_amount / guest_count
+                self.result_label.config(text=f"Каждый гость: {per_guest:.2f}₽")
+            else:
+                tk.messagebox.showwarning("Ошибка", "Количество участников должно быть больше нуля!")
+        except ValueError:
+            tk.messagebox.showerror("Ошибка", "Введите корректное количество участников!")
+
+    def enable_position_split(self, window, orders_list):
+        """Включает функционал разделения по позициям."""
+        split_window = tk.Toplevel(window)
+        split_window.title("Разделение по позициям")
+
+        tk.Label(split_window, text="Распределите заказы между гостями:", font=("Arial", 12)).pack(pady=5)
+        positions = orders_list.get(0, tk.END)
+        guests = {}
+
+        for pos in positions:
+            frame = tk.Frame(split_window)
+            frame.pack(pady=2)
+            tk.Label(frame, text=pos).pack(side=tk.LEFT, padx=5)
+
+            guest_entry = tk.Entry(frame, width=10)
+            guest_entry.pack(side=tk.RIGHT, padx=5)
+            guests[pos] = guest_entry
+
+        def calculate_positions():
+            results = {}
+            for pos, entry in guests.items():
+                guest = entry.get().strip()
+                if guest:
+                    if guest not in results:
+                        results[guest] = []
+                    results[guest].append(pos)
+
+            details = "\n".join([f"{guest}: {', '.join(positions)}" for guest, positions in results.items()])
+            tk.messagebox.showinfo("Распределение позиций", f"Результат:\n{details}")
+
+        tk.Button(split_window, text="Рассчитать", command=calculate_positions).pack(pady=10)
 
     def finish_checkout(self, window, total_label, discount_entry, payment_method):
         """Обрабатываем завершение расчёта."""
-        discount = discount_entry.get()
-        if discount.isdigit():
-            discount = int(discount)
-        else:
-            discount = 0
-
-        # Рассчитать новую итоговую стоимость
         total_text = total_label.cget("text")
         total_amount = int(total_text.split(":")[1].strip().replace("₽", ""))
-        final_amount = total_amount * (1 - discount / 100)
 
-        # Подтверждение
-        tk.messagebox.showinfo("Оплата завершена",
-                               f"Итоговая сумма: {final_amount:.2f}₽\nСпособ оплаты: {payment_method}")
+        # Проверка наличия скидки
+        discount = 0
+        if discount_entry and discount_entry.get().isdigit():
+            discount = int(discount_entry.get())
+            total_amount = total_amount * (1 - discount / 100)
 
-        # Обновляем статус столика
+        # Подтверждение оплаты
+        tk.messagebox.showinfo(
+            "Оплата завершена",
+            f"Итоговая сумма: {total_amount:.2f}₽\nСпособ оплаты: {payment_method}"
+        )
+
+        # Обновление статуса столика
         self.status = "free"
         self.guests = 0
         self.update_table_color()
         self.update_table_info_in_db()
 
-        # Закрываем окно
+        # Закрытие окна
         window.destroy()
 
     def save_to_db(self):
